@@ -1,34 +1,29 @@
-# PhoneCam Stream — MVP
+# PhoneCam
 
-Phone camera → Wi-Fi → PC browser receiver, designed for OBS workflows.
+Multi-camera Android camera + microphone streaming system for a Windows production desktop and OBS.
+
+**Status:** engineering foundation/scaffold. The architecture and interfaces are defined, but native WebRTC, device-specific camera behavior, decoder integration, installer signing, and final OBS SDK integration still require implementation/testing before production use.
 
 ## Architecture
-- Android native Kotlin app using WebRTC and a camera foreground service.
-- PC receiver is a tiny Node.js WebSocket signaling server + browser WebRTC viewer.
-- The Android service uses the Android camera foreground-service type so streaming can continue after the display is turned off, subject to device/OEM policies.
 
-## Android
-Open `android/` in Android Studio/VS Code with the Android SDK installed. Build/install the app, enter the PC's LAN signaling URL shown by the receiver, grant camera/microphone permissions, and press START STREAM while the app is visible. Android requires camera foreground services to be started while the app is visible on modern versions.
+Android phones publish independent WebRTC video + audio tracks to PhoneCam Desktop. Desktop manages every feed and exposes each feed independently to OBS.
 
-## PC receiver
-From `pc-receiver/`:
-
-```bash
-npm install
-npm start
+```text
+Phone 1 ─┐
+Phone 2 ─┼─ WebRTC ─> PhoneCam Desktop Core ─> OBS Plugin ─> OBS
+Phone 3 ─┘
 ```
 
-Open `http://localhost:8765` on the PC. The terminal prints the LAN WebSocket URL to enter in the phone app.
+## Audio
 
-## OBS
-For the first MVP, use OBS Browser Source pointed at `http://localhost:8765`. A later iteration can add a native OBS source/virtual camera bridge and expose bitrate/FPS/quality controls.
+Microphone transmission is enabled by default for a new stream after explicit Android microphone permission. Each phone has an independent audio track. Desktop controls audio per camera and globally: mute, gain, delay, monitoring and peak/clipping state.
 
-## Current MVP defaults
-- Rear camera
-- 1920×1080 @ 30 FPS requested
-- Hardware WebRTC encoder when available
-- STUN for ICE
-- Screen-off-capable foreground service
-- Partial wake lock while actively streaming
+## Security
 
-Device-specific thermal throttling and battery optimization can still affect long sessions.
+Pairing, authentication, session authorization, protocol validation, secure secret storage, local-only OBS IPC, secret-free logs and reconnect identity verification are mandatory design goals. See `docs/security/THREAT_MODEL.md`.
+
+## Miscellaneous
+
+`Miscellaneous/` contains plans, AI prompts, experiments and other working material. It is intentionally listed in the ZIP but ignored by Git via `.gitignore`, so it is available to AI coding agents locally without being committed.
+
+**Do not put secrets in Miscellaneous. Gitignored is not the same as secure.**

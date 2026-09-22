@@ -1,1 +1,0 @@
-<resources><style name="Theme.PhoneCamStream" parent="Theme.AppCompat.DayNight.NoActionBar"><item name="android:fontFamily">sans</item><item name="android:windowActionModeOverlay">true</item></style></resources>
