@@ -42,6 +42,7 @@ logs/
 
 # AI working material - intentionally not committed
 Miscellaneous/
+.roo/
 
 # OS
 .DS_Store
