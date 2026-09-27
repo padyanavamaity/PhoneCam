@@ -20,17 +20,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
-    // CameraX
-    implementation("androidx.camera:camera-core:1.4.1")
-    implementation("androidx.camera:camera-camera2:1.4.1")
-    implementation("androidx.camera:camera-video:1.4.1")
-    implementation("androidx.camera:camera-view:1.4.1")
-    implementation("androidx.camera:camera-lifecycle:1.4.1")
+    // WebRTC (Google's prebuilt M125)
+    implementation("io.github.webrtc-sdk:android:125.6422.07")
 
-    // Media3 (for media utilities)
-    implementation("androidx.media3:media3-exoplayer:1.5.1")
-    implementation("androidx.media3:media3-transformer:1.5.1")
-
-    // WebRTC (Google's prebuilt)
-    implementation("org.webrtc:google-webrtc:1.0.32006")
+    // Unit tests
+    testImplementation("junit:junit:4.13.2")
 }

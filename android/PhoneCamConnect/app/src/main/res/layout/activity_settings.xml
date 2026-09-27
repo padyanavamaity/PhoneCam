@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="@color/pc_background">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/pc_spacing_md">
+
+        <!-- Top bar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/pc_topbar_height"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="@dimen/pc_spacing_md">
+
+            <TextView
+                android:id="@+id/buttonBack"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="@dimen/pc_spacing_sm"
+                android:text="@string/action_back"
+                android:textColor="@color/pc_primary"
+                android:textSize="@dimen/pc_text_sm" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/settings_title"
+                android:textColor="@color/pc_text_primary"
+                android:textSize="@dimen/pc_text_lg"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- CAMERA section -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_section_camera"
+            android:textColor="@color/pc_text_secondary"
+            android:textSize="@dimen/pc_text_sm"
+            android:textStyle="bold"
+            android:layout_marginBottom="@dimen/pc_spacing_sm" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="@dimen/pc_spacing_md"
+            android:layout_marginBottom="@dimen/pc_spacing_md">
+
+            <!-- Facing -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="@dimen/pc_spacing_sm">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/settings_facing"
+                    android:textColor="@color/pc_text_primary"
+                    android:textSize="@dimen/pc_text_sm" />
+                <Spinner
+                    android:id="@+id/spinnerFacing"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minWidth="120dp" />
+            </LinearLayout>
+
+            <!-- Resolution -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="@dimen/pc_spacing_sm">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/settings_resolution"
+                    android:textColor="@color/pc_text_primary"
+                    android:textSize="@dimen/pc_text_sm" />
+                <Spinner
+                    android:id="@+id/spinnerResolution"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minWidth="140dp" />
+            </LinearLayout>
+
+            <!-- FPS -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/settings_fps"
+                    android:textColor="@color/pc_text_primary"
+                    android:textSize="@dimen/pc_text_sm" />
+                <Spinner
+                    android:id="@+id/spinnerFps"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minWidth="100dp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- STREAM section -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_section_stream"
+            android:textColor="@color/pc_text_secondary"
+            android:textSize="@dimen/pc_text_sm"
+            android:textStyle="bold"
+            android:layout_marginBottom="@dimen/pc_spacing_sm" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="@dimen/pc_spacing_md"
+            android:layout_marginBottom="@dimen/pc_spacing_md">
+
+            <!-- Bitrate -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="@dimen/pc_spacing_sm">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/settings_bitrate"
+                    android:textColor="@color/pc_text_primary"
+                    android:textSize="@dimen/pc_text_sm" />
+                <TextView
+                    android:id="@+id/textBitrateValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="4.0 Mbps"
+                    android:textColor="@color/pc_primary"
+                    android:textSize="@dimen/pc_text_sm"
+                    android:fontFamily="monospace" />
+            </LinearLayout>
+
+            <SeekBar
+                android:id="@+id/seekBitrate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/pc_spacing_md" />
+
+            <!-- Codec -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="@dimen/pc_spacing_sm">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/settings_codec"
+                    android:textColor="@color/pc_text_primary"
+                    android:textSize="@dimen/pc_text_sm" />
+                <Spinner
+                    android:id="@+id/spinnerCodec"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minWidth="100dp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/settingsSubNote"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/settings_note_stream_apply"
+                android:textColor="@color/pc_text_secondary"
+                android:textSize="@dimen/pc_text_xs" />
+        </LinearLayout>
+
+        <!-- DEVICE CAPABILITIES section -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_section_caps"
+            android:textColor="@color/pc_text_secondary"
+            android:textSize="@dimen/pc_text_sm"
+            android:textStyle="bold"
+            android:layout_marginBottom="@dimen/pc_spacing_sm" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="@dimen/pc_spacing_md">
+
+            <TextView
+                android:id="@+id/textBackCaps"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/value_unknown"
+                android:textColor="@color/pc_text_secondary"
+                android:textSize="@dimen/pc_text_xs"
+                android:fontFamily="monospace"
+                android:layout_marginBottom="@dimen/pc_spacing_sm" />
+
+            <TextView
+                android:id="@+id/textFrontCaps"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/value_unknown"
+                android:textColor="@color/pc_text_secondary"
+                android:textSize="@dimen/pc_text_xs"
+                android:fontFamily="monospace" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

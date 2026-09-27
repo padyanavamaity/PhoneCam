@@ -92,26 +92,75 @@ namespace phonecam
         return *this;
     }
 
+    // Helper: current process owner's SID as a string (e.g. "S-1-5-21-...-1001"),
+    // used to scope the OBS IPC pipe's ACL to exactly the user running this
+    // desktop app, rather than the broad built-in "Interactive User" (IU)
+    // group, which would let ANY other interactively logged-in user on a
+    // shared/multi-user machine attempt to open the pipe. Returns empty on
+    // failure so the caller can fall back to the broader (but still
+    // local-machine-only) IU-based ACL rather than failing pipe creation.
+    static std::string getCurrentUserSidString()
+    {
+        std::string sidString;
+        HANDLE processToken = nullptr;
+        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &processToken))
+        {
+            return sidString;
+        }
+
+        DWORD infoLen = 0;
+        GetTokenInformation(processToken, TokenUser, nullptr, 0, &infoLen);
+        if (infoLen == 0)
+        {
+            CloseHandle(processToken);
+            return sidString;
+        }
+
+        std::vector<uint8_t> buffer(infoLen);
+        if (GetTokenInformation(processToken, TokenUser, buffer.data(), infoLen, &infoLen))
+        {
+            auto *tokenUser = reinterpret_cast<TOKEN_USER *>(buffer.data());
+            LPSTR sidCStr = nullptr;
+            if (ConvertSidToStringSidA(tokenUser->User.Sid, &sidCStr))
+            {
+                sidString = sidCStr;
+                LocalFree(sidCStr);
+            }
+        }
+
+        CloseHandle(processToken);
+        return sidString;
+    }
+
     IpcServer::SecurityDescriptorPtr
     IpcServer::createSecurityDescriptor()
     {
         // ACL allowing:
-        // - OBS process (we'll identify by executable path at runtime)
         // - LOCAL SYSTEM (S-1-5-18)
         // - Administrators (S-1-5-32-544)
-
-        // Build SDDL string for the security descriptor
-        // D: - Discretionary ACL
-        // (A;;GA;;;SY) - Allow Generic All to Local System
-        // (A;;GA;;;BA) - Allow Generic All to Built-in Administrators
-        // (A;;GRGW;;;IU) - Allow Generic Read/Write to Interactive User (for OBS running as user)
-        // Note: For tighter security, we could restrict to specific executable path
-
-        const char *sddl = "D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGW;;;IU)";
+        // - The specific user account running this desktop process (preferred),
+        //   or, only if that SID can't be determined, the broad built-in
+        //   Interactive User group (IU) as a fallback so pipe creation still
+        //   succeeds. Prefer the per-user SID: on a shared/multi-user
+        //   Windows machine, IU would let any other logged-in user's
+        //   processes attempt to open this pipe, not just this app's owner.
+        std::string userSid = getCurrentUserSidString();
+        std::string sddl = "D:(A;;GA;;;SY)(A;;GA;;;BA)";
+        if (!userSid.empty())
+        {
+            sddl += "(A;;GRGW;;;" + userSid + ")";
+        }
+        else
+        {
+            std::cerr << "[IpcServer] WARNING: could not resolve current user SID; "
+                         "falling back to broad Interactive User (IU) ACL for the OBS IPC pipe"
+                      << std::endl;
+            sddl += "(A;;GRGW;;;IU)";
+        }
 
         PSECURITY_DESCRIPTOR sd = nullptr;
         if (!ConvertStringSecurityDescriptorToSecurityDescriptorA(
-                sddl, SDDL_REVISION_1, &sd, nullptr))
+                sddl.c_str(), SDDL_REVISION_1, &sd, nullptr))
         {
             DWORD err = GetLastError();
             std::cerr << "[IpcServer] Failed to create security descriptor: " << err << std::endl;

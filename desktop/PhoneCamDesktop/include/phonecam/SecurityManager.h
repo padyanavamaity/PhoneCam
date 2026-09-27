@@ -187,6 +187,13 @@ public:
     // Verify peer certificate from OpenSSL X509
     bool verifyPinnedCertificate(const ::X509* peerCert) const;
 
+    // Whether certificate pinning is actively enforced (i.e. a certificate
+    // has been pinned via setPinnedCertificate). Callers that establish TLS
+    // connections MUST check this before treating an empty pin list as "no
+    // pinning configured, allow anything" - verifyPinnedCertificate() no
+    // longer fails open silently; see its implementation.
+    bool isCertificatePinningEnforced() const;
+
     // ===== Device/Session Registry =====
     // Register a device-session pairing
     void registerPairing(const std::string& deviceId, const std::string& sessionId);

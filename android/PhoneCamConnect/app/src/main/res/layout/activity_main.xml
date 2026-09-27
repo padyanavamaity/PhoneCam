@@ -1,5 +1,389 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="24dp">
-<TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="PhoneCam Connect" android:textSize="28sp"/>
-<TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Camera + microphone WebRTC sender" android:layout_marginTop="12dp"/>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="@dimen/pc_spacing_md"
+    android:background="@color/pc_background">
+
+        <!-- Top bar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/pc_topbar_height"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="@dimen/pc_spacing_md">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/label_app_title"
+                android:textColor="@color/pc_text_primary"
+                android:textSize="@dimen/pc_text_lg"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/buttonSettings"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="@dimen/pc_spacing_sm"
+                android:text="@string/action_settings"
+                android:textColor="@color/pc_primary"
+                android:textSize="@dimen/pc_text_sm" />
+        </LinearLayout>
+
+        <!-- Connection card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="@dimen/pc_spacing_md"
+            android:layout_marginBottom="@dimen/pc_spacing_md">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="@dimen/pc_spacing_sm">
+
+                <View
+                    android:id="@+id/connectionStatusDot"
+                    android:layout_width="@dimen/pc_badge_size"
+                    android:layout_height="@dimen/pc_badge_size"
+                    android:background="@drawable/status_badge_inactive"
+                    android:layout_marginEnd="@dimen/pc_spacing_sm" />
+
+                <TextView
+                    android:id="@+id/connectionStatusText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/status_disconnected"
+                    android:textColor="@color/pc_text_primary"
+                    android:textSize="@dimen/pc_text_md"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="@dimen/pc_spacing_xs">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/label_desktop"
+                        android:textColor="@color/pc_text_secondary"
+                        android:textSize="@dimen/pc_text_sm" />
+                    <TextView
+                        android:id="@+id/textDesktopValue"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/value_unknown"
+                        android:textColor="@color/pc_text_primary"
+                        android:textSize="@dimen/pc_text_sm"
+                        android:fontFamily="monospace" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="@dimen/pc_spacing_xs">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/label_ip"
+                        android:textColor="@color/pc_text_secondary"
+                        android:textSize="@dimen/pc_text_sm" />
+                    <TextView
+                        android:id="@+id/textIpValue"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/value_unknown"
+                        android:textColor="@color/pc_text_primary"
+                        android:textSize="@dimen/pc_text_sm"
+                        android:fontFamily="monospace" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="@dimen/pc_spacing_xs">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/label_network"
+                        android:textColor="@color/pc_text_secondary"
+                        android:textSize="@dimen/pc_text_sm" />
+                    <TextView
+                        android:id="@+id/textNetworkValue"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/value_unknown"
+                        android:textColor="@color/pc_text_primary"
+                        android:textSize="@dimen/pc_text_sm"
+                        android:fontFamily="monospace" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="@dimen/pc_spacing_xs">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/label_latency"
+                        android:textColor="@color/pc_text_secondary"
+                        android:textSize="@dimen/pc_text_sm" />
+                    <TextView
+                        android:id="@+id/textLatencyValue"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/value_unknown"
+                        android:textColor="@color/pc_text_primary"
+                        android:textSize="@dimen/pc_text_sm"
+                        android:fontFamily="monospace" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/label_pairing"
+                        android:textColor="@color/pc_text_secondary"
+                        android:textSize="@dimen/pc_text_sm" />
+                    <TextView
+                        android:id="@+id/textPairingValue"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/value_no_pairing"
+                        android:textColor="@color/pc_warning"
+                        android:textSize="@dimen/pc_text_sm"
+                        android:fontFamily="monospace" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Preview -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:minHeight="240dp"
+            android:background="@color/pc_black"
+            android:layout_marginBottom="@dimen/pc_spacing_md">
+
+            <org.webrtc.SurfaceViewRenderer
+                android:id="@+id/previewView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@color/pc_overlay_scrim"
+                android:visibility="gone"
+                android:id="@+id/previewOverlay"/>
+
+            <TextView
+                android:id="@+id/previewPlaceholder"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="@string/preview_idle"
+                android:textColor="@color/pc_text_secondary"
+                android:textSize="@dimen/pc_text_md" />
+
+            <!-- Bottom overlay info -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:orientation="horizontal"
+                android:background="@color/pc_overlay_scrim"
+                android:padding="@dimen/pc_spacing_sm">
+
+                <TextView
+                    android:id="@+id/textRes"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/value_unknown"
+                    android:textColor="@color/pc_text_primary"
+                    android:textSize="@dimen/pc_text_xs"
+                    android:fontFamily="monospace"
+                    android:gravity="center" />
+
+                <TextView
+                    android:id="@+id/textFps"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/value_unknown"
+                    android:textColor="@color/pc_text_primary"
+                    android:textSize="@dimen/pc_text_xs"
+                    android:fontFamily="monospace"
+                    android:gravity="center" />
+
+                <TextView
+                    android:id="@+id/textBitrate"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/value_unknown"
+                    android:textColor="@color/pc_text_primary"
+                    android:textSize="@dimen/pc_text_xs"
+                    android:fontFamily="monospace"
+                    android:gravity="center" />
+
+                <TextView
+                    android:id="@+id/textCodec"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/value_unknown"
+                    android:textColor="@color/pc_text_primary"
+                    android:textSize="@dimen/pc_text_xs"
+                    android:fontFamily="monospace"
+                    android:gravity="center" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <!-- Primary action -->
+        <Button
+            android:id="@+id/buttonStream"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/pc_button_height"
+            android:background="@drawable/bg_button_primary"
+            android:text="@string/action_start_stream"
+            android:textColor="@color/pc_text_primary"
+            android:textSize="@dimen/pc_text_md"
+            android:textStyle="bold"
+            android:layout_marginBottom="@dimen/pc_spacing_md" />
+
+        <!-- Status indicators -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center_horizontal">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/label_permission_camera"
+                    android:textColor="@color/pc_text_secondary"
+                    android:textSize="@dimen/pc_text_xs" />
+                <TextView
+                    android:id="@+id/permCamera"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/state_required"
+                    android:textColor="@color/pc_warning"
+                    android:textSize="@dimen/pc_text_sm"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center_horizontal">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/label_permission_mic"
+                    android:textColor="@color/pc_text_secondary"
+                    android:textSize="@dimen/pc_text_xs" />
+                <TextView
+                    android:id="@+id/permMic"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/state_required"
+                    android:textColor="@color/pc_warning"
+                    android:textSize="@dimen/pc_text_sm"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center_horizontal">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/label_webrtc"
+                    android:textColor="@color/pc_text_secondary"
+                    android:textSize="@dimen/pc_text_xs" />
+                <TextView
+                    android:id="@+id/statusWebrtc"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/state_idle"
+                    android:textColor="@color/pc_text_secondary"
+                    android:textSize="@dimen/pc_text_sm"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center_horizontal">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/label_streaming"
+                    android:textColor="@color/pc_text_secondary"
+                    android:textSize="@dimen/pc_text_xs" />
+                <TextView
+                    android:id="@+id/statusStreaming"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/state_off"
+                    android:textColor="@color/pc_text_secondary"
+                    android:textSize="@dimen/pc_text_sm"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Error banner -->
+        <TextView
+            android:id="@+id/errorBanner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/pc_spacing_md"
+            android:padding="@dimen/pc_spacing_md"
+            android:background="@drawable/bg_status_badge_error"
+            android:textColor="@color/pc_text_primary"
+            android:textSize="@dimen/pc_text_sm"
+            android:visibility="gone" />
 </LinearLayout>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Spacing scale per SHARED_DESIGN_SYSTEM_PROMPT -->
+    <dimen name="pc_spacing_xs">4dp</dimen>
+    <dimen name="pc_spacing_sm">8dp</dimen>
+    <dimen name="pc_spacing_md">16dp</dimen>
+    <dimen name="pc_spacing_lg">24dp</dimen>
+    <dimen name="pc_spacing_xl">32dp</dimen>
+
+    <!-- Corner radii -->
+    <dimen name="pc_radius_sm">4dp</dimen>
+    <dimen name="pc_radius_md">8dp</dimen>
+    <dimen name="pc_radius_lg">12dp</dimen>
+
+    <!-- Component sizes -->
+    <dimen name="pc_button_height">52dp</dimen>
+    <dimen name="pc_badge_size">12dp</dimen>
+    <dimen name="pc_icon_size">24dp</dimen>
+    <dimen name="pc_topbar_height">56dp</dimen>
+
+    <!-- Text sizes -->
+    <dimen name="pc_text_xs">11sp</dimen>
+    <dimen name="pc_text_sm">13sp</dimen>
+    <dimen name="pc_text_md">15sp</dimen>
+    <dimen name="pc_text_lg">18sp</dimen>
+    <dimen name="pc_text_xl">24sp</dimen>
+</resources>

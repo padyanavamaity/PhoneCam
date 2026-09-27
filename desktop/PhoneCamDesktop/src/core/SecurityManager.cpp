@@ -11,11 +11,34 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <iomanip>
+#include <iostream>
 #include <sstream>
 #include <vector>
 #include <nlohmann/json.hpp>
+
+namespace {
+// Constant-time string comparison for secrets (tokens, HMACs, signatures).
+// Always walks the full length of the longer string so a length mismatch
+// does not short-circuit into a faster code path that itself leaks
+// information via timing. Every comparison of secret-derived material in
+// this file must go through this helper - see the previous review finding
+// where several token comparisons used plain == and leaked timing.
+bool constantTimeEquals(const std::string& a, const std::string& b) {
+    // Still touch every byte of both strings even on a length mismatch, so
+    // callers can't distinguish "wrong length" from "wrong content" by timing.
+    size_t maxLen = std::max(a.size(), b.size());
+    unsigned char diff = static_cast<unsigned char>(a.size() != b.size());
+    for (size_t i = 0; i < maxLen; ++i) {
+        unsigned char ca = i < a.size() ? static_cast<unsigned char>(a[i]) : 0;
+        unsigned char cb = i < b.size() ? static_cast<unsigned char>(b[i]) : 0;
+        diff |= static_cast<unsigned char>(ca ^ cb);
+    }
+    return diff == 0;
+}
+} // namespace
 
 namespace phonecam {
 
@@ -201,7 +224,7 @@ bool SecurityManager::validateSessionToken(const SessionToken& token) const {
             return false; // Session revoked or doesn't exist
         }
         // Also verify the token matches the current stored token
-        if (it->second.token != token.token) {
+        if (!constantTimeEquals(it->second.token, token.token)) {
             return false; // Token was refreshed/replaced
         }
     }
@@ -226,7 +249,7 @@ bool SecurityManager::validateSessionToken(const SessionToken& token) const {
         oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(b);
     }
     
-    return token.token == oss.str();
+    return constantTimeEquals(token.token, oss.str());
 }
 
 // Simpler interface for IPC: validate token by sessionId and token string
@@ -248,7 +271,7 @@ bool SecurityManager::validateSessionToken(const std::string& sessionId, const s
     }
     
     // Verify token matches stored token
-    return it->second.token == token;
+    return constantTimeEquals(it->second.token, token);
 }
 
 bool SecurityManager::verifySessionOwnership(const std::string& sessionId, const std::string& deviceId) const {
@@ -386,17 +409,8 @@ bool SecurityManager::verifyMessageSignature(const ProtocolMessage& message, con
     
     std::string expectedSignature = signMessage(message, hmacKey);
     
-    // Constant-time comparison to prevent timing attacks
-    if (expectedSignature.size() != message.signature.size()) {
-        return false;
-    }
-    
-    int result = 0;
-    for (size_t i = 0; i < expectedSignature.size(); ++i) {
-        result |= expectedSignature[i] ^ message.signature[i];
-    }
-    
-    return result == 0;
+    // Constant-time comparison to prevent timing attacks (see constantTimeEquals above).
+    return constantTimeEquals(expectedSignature, message.signature);
 }
 
 // ===== Protocol Validation =====
@@ -517,15 +531,26 @@ phonecam::ValidationResult SecurityManager::validateProtocolMessage(const std::s
         return result;
     }
     
-    // Verify signature if present
-    if (!msg.signature.empty()) {
+    // Verify signature. This is REQUIRED whenever a session/token exists for
+    // this sessionId - a message must never be accepted just because its
+    // (attacker-controlled) signature field happens to be empty. Previously
+    // this only ran "if (!msg.signature.empty())", which let an attacker who
+    // merely observed a legitimate deviceId/sessionId pair on the LAN forge
+    // arbitrary commands by omitting the signature entirely, since deviceId
+    // and sessionId are not secret and travel in plaintext on every message.
+    {
         std::lock_guard<std::mutex> lock(sessionTokensMutex_);
         auto tokenIt = sessionTokens_.find(msg.sessionId);
         if (tokenIt == sessionTokens_.end()) {
             result.errorMessage = "Session token not found for signature verification";
             return result;
         }
-        
+
+        if (msg.signature.empty()) {
+            result.errorMessage = "Message signature is required and was missing";
+            return result;
+        }
+
         if (!verifyMessageSignature(msg, tokenIt->second.hmacKey)) {
             result.errorMessage = "Message signature verification failed";
             return result;
@@ -890,8 +915,15 @@ bool SecurityManager::verifyPinnedCertificate(const std::vector<uint8_t>& peerCe
     std::lock_guard<std::mutex> lock(pinnedCertMutex_);
     
     if (pinnedCertDer_.empty()) {
-        // No pinned certificate set - allow (but log warning in production)
-        return true;
+        // FAIL CLOSED: no certificate has been pinned yet, so there is
+        // nothing to verify against. Previously this returned true ("allow"),
+        // which meant any code path relying on this check for TLS peer
+        // verification would silently accept an arbitrary/attacker
+        // certificate until setPinnedCertificate() happened to be called.
+        // Callers that intentionally want a "no pinning" mode must check
+        // isCertificatePinningEnforced() themselves and skip calling this
+        // function, rather than relying on it to allow-by-default.
+        return false;
     }
     
     // Simple binary comparison for exact match
@@ -899,32 +931,43 @@ bool SecurityManager::verifyPinnedCertificate(const std::vector<uint8_t>& peerCe
     return pinnedCertDer_ == peerCertDer;
 }
 
+bool SecurityManager::isCertificatePinningEnforced() const {
+    std::lock_guard<std::mutex> lock(pinnedCertMutex_);
+    return !pinnedCertDer_.empty();
+}
+
 bool SecurityManager::verifyPinnedCertificate(const ::X509* peerCert) const {
     if (!peerCert) {
         return false;
     }
     
-    std::lock_guard<std::mutex> lock(pinnedCertMutex_);
-    
-    if (pinnedCertDer_.empty()) {
-        return true;
-    }
-    
-    // Convert peer cert to DER
+    // Convert peer cert to DER *before* taking pinnedCertMutex_, and compare
+    // directly against pinnedCertDer_ under a single lock scope, rather than
+    // calling verifyPinnedCertificate(vector<uint8_t>) while still holding
+    // the lock here. The previous version held pinned CertMutex_ for this
+    // entire function and then called into the other overload, which tries
+    // to lock the same (non-recursive) std::mutex again - a guaranteed
+    // self-deadlock on the very path (a certificate IS pinned) that this
+    // function exists to protect.
     int len = i2d_X509(peerCert, nullptr);
     if (len <= 0) {
         return false;
     }
-    
-    std::vector<uint8_t> peerDer(len);
+
+    std::vector<uint8_t> peerDer(static_cast<size_t>(len));
     unsigned char* p = peerDer.data();
     len = i2d_X509(peerCert, &p);
     if (len <= 0) {
         return false;
     }
-    peerDer.resize(len);
-    
-    return verifyPinnedCertificate(peerDer);
+    peerDer.resize(static_cast<size_t>(len));
+
+    std::lock_guard<std::mutex> lock(pinnedCertMutex_);
+    if (pinnedCertDer_.empty()) {
+        // FAIL CLOSED - see verifyPinnedCertificate(vector<uint8_t>) above.
+        return false;
+    }
+    return pinnedCertDer_ == peerDer;
 }
 
 // ===== Device/Session Registry =====
@@ -958,11 +1001,17 @@ void SecurityManager::removePairing(const std::string& deviceId, const std::stri
 
 std::vector<uint8_t> SecurityManager::generateRandomBytes(size_t count) {
     std::vector<uint8_t> bytes(count);
-    if (RAND_bytes(bytes.data(), static_cast<int>(count)) != 1) {
-        // Fallback - should not happen in production
-        for (size_t i = 0; i < count; ++i) {
-            bytes[i] = static_cast<uint8_t>(rand());
-        }
+    if (count > 0 && RAND_bytes(bytes.data(), static_cast<int>(count)) != 1) {
+        // A failed CSPRNG call means every master key, HMAC key, session
+        // token, and nonce generated from here on would be predictable.
+        // Silently falling back to rand() (previously done here) would turn
+        // that into a silent, undetectable compromise of the whole security
+        // model. Fail loudly instead - a crash is recoverable, a predictable
+        // "random" master key is not.
+        std::cerr << "[phonecam][FATAL] CSPRNG failure (RAND_bytes) - refusing to "
+                     "generate security-critical random material"
+                  << std::endl;
+        std::abort();
     }
     return bytes;
 }

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Core palette per SHARED_DESIGN_SYSTEM_PROMPT -->
+    <color name="pc_background">#FF0A0F1A</color>
+    <color name="pc_surface">#FF141E2E</color>
+    <color name="pc_surface_variant">#FF1B2940</color>
+
+    <color name="pc_primary">#FF00D4C8</color>
+    <color name="pc_primary_dark">#FF0E8F88</color>
+    <color name="pc_action">#FFFF8C00</color>
+    <color name="pc_action_pressed">#FFCC6F00</color>
+
+    <color name="pc_success">#FF00E676</color>
+    <color name="pc_warning">#FFFFB300</color>
+    <color name="pc_error">#FFFF3D5A</color>
+
+    <color name="pc_text_primary">#FFFFFFFF</color>
+    <color name="pc_text_secondary">#FF9AA4B2</color>
+    <color name="pc_text_disabled">#FF5A6472</color>
+
+    <color name="pc_overlay_scrim">#800A0F1A</color>
+    <color name="pc_divider">#FF223048</color>
+    <color name="pc_black">#FF000000</color>
+    <color name="pc_off">#FF3B4252</color>
+    <color name="pc_danger">#FFFF3D5A</color>
+    <color name="pc_danger_pressed">#FFCC2E48</color>
+</resources>
