@@ -1,14 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Phase 1 minimal dark theme. Material library is not a direct dependency,
-         so we base on a platform dark theme to avoid a hard build failure. -->
-    <style name="Theme.PhoneCam" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@color/pc_background</item>
-        <item name="android:statusBarColor">@color/pc_background</item>
-        <item name="android:navigationBarColor">@color/pc_background</item>
-        <item name="android:textColorPrimary">@color/pc_text_primary</item>
-        <item name="android:textColorSecondary">@color/pc_text_secondary</item>
-        <item name="android:colorPrimary">@color/pc_primary</item>
-        <item name="android:colorAccent">@color/pc_action</item>
+    <style name="Theme.PhoneCam" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+        <item name="colorPrimary">@color/accent</item>
+        <item name="colorOnPrimary">@color/bg</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+    </style>
+
+    <style name="SettingsLabel">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">16dp</item>
+        <item name="android:textColor">@color/accent</item>
+        <item name="android:textSize">12sp</item>
     </style>
 </resources>

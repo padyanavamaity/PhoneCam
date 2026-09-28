@@ -2,237 +2,76 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true"
-    android:background="@color/pc_background">
+    android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="@dimen/pc_spacing_md">
+        android:padding="16dp">
 
-        <!-- Top bar -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/pc_topbar_height"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="@dimen/pc_spacing_md">
-
-            <TextView
-                android:id="@+id/buttonBack"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:padding="@dimen/pc_spacing_sm"
-                android:text="@string/action_back"
-                android:textColor="@color/pc_primary"
-                android:textSize="@dimen/pc_text_sm" />
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/settings_title"
-                android:textColor="@color/pc_text_primary"
-                android:textSize="@dimen/pc_text_lg"
-                android:textStyle="bold" />
-        </LinearLayout>
-
-        <!-- CAMERA section -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/settings_section_camera"
-            android:textColor="@color/pc_text_secondary"
-            android:textSize="@dimen/pc_text_sm"
-            android:textStyle="bold"
-            android:layout_marginBottom="@dimen/pc_spacing_sm" />
+            android:text="Settings"
+            android:textColor="@color/text_primary"
+            android:textSize="20sp"
+            android:textStyle="bold" />
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="@drawable/bg_card"
-            android:padding="@dimen/pc_spacing_md"
-            android:layout_marginBottom="@dimen/pc_spacing_md">
-
-            <!-- Facing -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="@dimen/pc_spacing_sm">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/settings_facing"
-                    android:textColor="@color/pc_text_primary"
-                    android:textSize="@dimen/pc_text_sm" />
-                <Spinner
-                    android:id="@+id/spinnerFacing"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:minWidth="120dp" />
-            </LinearLayout>
-
-            <!-- Resolution -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="@dimen/pc_spacing_sm">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/settings_resolution"
-                    android:textColor="@color/pc_text_primary"
-                    android:textSize="@dimen/pc_text_sm" />
-                <Spinner
-                    android:id="@+id/spinnerResolution"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:minWidth="140dp" />
-            </LinearLayout>
-
-            <!-- FPS -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/settings_fps"
-                    android:textColor="@color/pc_text_primary"
-                    android:textSize="@dimen/pc_text_sm" />
-                <Spinner
-                    android:id="@+id/spinnerFps"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:minWidth="100dp" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- STREAM section -->
+        <TextView style="@style/SettingsLabel" android:text="Device" />
         <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/settings_section_stream"
-            android:textColor="@color/pc_text_secondary"
-            android:textSize="@dimen/pc_text_sm"
-            android:textStyle="bold"
-            android:layout_marginBottom="@dimen/pc_spacing_sm" />
-
-        <LinearLayout
+            android:id="@+id/tvDeviceId"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="@drawable/bg_card"
-            android:padding="@dimen/pc_spacing_md"
-            android:layout_marginBottom="@dimen/pc_spacing_md">
+            android:textColor="@color/text_secondary" />
+        <TextView style="@style/SettingsLabel" android:text="Device name" />
+        <EditText
+            android:id="@+id/etName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="e.g. Front Camera"
+            android:importantForAutofill="no"
+            android:inputType="textCapWords"
+            android:maxLength="40"
+            android:textColor="@color/text_primary" />
 
-            <!-- Bitrate -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="@dimen/pc_spacing_sm">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/settings_bitrate"
-                    android:textColor="@color/pc_text_primary"
-                    android:textSize="@dimen/pc_text_sm" />
-                <TextView
-                    android:id="@+id/textBitrateValue"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="4.0 Mbps"
-                    android:textColor="@color/pc_primary"
-                    android:textSize="@dimen/pc_text_sm"
-                    android:fontFamily="monospace" />
-            </LinearLayout>
+        <TextView style="@style/SettingsLabel" android:text="Resolution (supported by this camera)" />
+        <Spinner android:id="@+id/spRes" android:layout_width="match_parent" android:layout_height="wrap_content" />
 
-            <SeekBar
-                android:id="@+id/seekBitrate"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="@dimen/pc_spacing_md" />
+        <TextView style="@style/SettingsLabel" android:text="Frame rate" />
+        <Spinner android:id="@+id/spFps" android:layout_width="match_parent" android:layout_height="wrap_content" />
 
-            <!-- Codec -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="@dimen/pc_spacing_sm">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/settings_codec"
-                    android:textColor="@color/pc_text_primary"
-                    android:textSize="@dimen/pc_text_sm" />
-                <Spinner
-                    android:id="@+id/spinnerCodec"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:minWidth="100dp" />
-            </LinearLayout>
+        <TextView style="@style/SettingsLabel" android:text="Max video bitrate (kbps)" />
+        <EditText
+            android:id="@+id/etBitrate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:importantForAutofill="no"
+            android:inputType="number"
+            android:textColor="@color/text_primary" />
 
-            <TextView
-                android:id="@+id/settingsSubNote"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/settings_note_stream_apply"
-                android:textColor="@color/pc_text_secondary"
-                android:textSize="@dimen/pc_text_xs" />
-        </LinearLayout>
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/swAuto"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Start streaming when app opens"
+            android:textColor="@color/text_primary" />
 
-        <!-- DEVICE CAPABILITIES section -->
+        <TextView style="@style/SettingsLabel" android:text="About / connection diagnostics" />
         <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/settings_section_caps"
-            android:textColor="@color/pc_text_secondary"
-            android:textSize="@dimen/pc_text_sm"
-            android:textStyle="bold"
-            android:layout_marginBottom="@dimen/pc_spacing_sm" />
-
-        <LinearLayout
+            android:id="@+id/tvDiag"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="@drawable/bg_card"
-            android:padding="@dimen/pc_spacing_md">
+            android:fontFamily="monospace"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
 
-            <TextView
-                android:id="@+id/textBackCaps"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/value_unknown"
-                android:textColor="@color/pc_text_secondary"
-                android:textSize="@dimen/pc_text_xs"
-                android:fontFamily="monospace"
-                android:layout_marginBottom="@dimen/pc_spacing_sm" />
-
-            <TextView
-                android:id="@+id/textFrontCaps"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/value_unknown"
-                android:textColor="@color/pc_text_secondary"
-                android:textSize="@dimen/pc_text_xs"
-                android:fontFamily="monospace" />
-        </LinearLayout>
-
+        <Button
+            android:id="@+id/btnSave"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="Save" />
     </LinearLayout>
 </ScrollView>
