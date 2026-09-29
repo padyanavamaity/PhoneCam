@@ -15,8 +15,8 @@ namespace phonecam {
 // Forward declaration for WebSocket connection
 class WebSocketConnection;
 
-// Signaling message types
-enum class SignalingMessageType : uint8_t {
+// Server-side signaling message types (distinct from client-side)
+enum class ServerSignalingMessageType : uint8_t {
     OFFER = 0,
     ANSWER = 1,
     ICE_CANDIDATE = 2,
@@ -27,8 +27,8 @@ enum class SignalingMessageType : uint8_t {
     PONG = 7
 };
 
-struct SignalingMessage {
-    SignalingMessageType type;
+struct ServerSignalingMessage {
+    ServerSignalingMessageType type;
     std::string sessionId;
     std::string deviceId;
     std::string payload; // JSON payload (SDP, ICE candidate, etc.)
@@ -37,12 +37,12 @@ struct SignalingMessage {
 };
 
 // Callback types for signaling events
-using OnOfferCallback = std::function<void(const std::string& sessionId, const std::string& deviceId, const std::string& sdp)>;
-using OnAnswerCallback = std::function<void(const std::string& sessionId, const std::string& sdp)>;
-using OnIceCandidateCallback = std::function<void(const std::string& sessionId, const std::string& candidate)>;
-using OnSessionInitCallback = std::function<void(const std::string& sessionId, const std::string& deviceId)>;
-using OnSessionCloseCallback = std::function<void(const std::string& sessionId)>;
-using OnErrorCallback = std::function<void(const std::string& sessionId, const std::string& error)>;
+using ServerOnOfferCallback = std::function<void(const std::string& sessionId, const std::string& deviceId, const std::string& sdp)>;
+using ServerOnAnswerCallback = std::function<void(const std::string& sessionId, const std::string& sdp)>;
+using ServerOnIceCandidateCallback = std::function<void(const std::string& sessionId, const std::string& sdpMid, int sdpMLineIndex, const std::string& candidate)>;
+using ServerOnSessionInitCallback = std::function<void(const std::string& sessionId, const std::string& deviceId)>;
+using ServerOnSessionCloseCallback = std::function<void(const std::string& sessionId)>;
+using ServerOnErrorCallback = std::function<void(const std::string& sessionId, const std::string& error)>;
 
 struct SignalingServerConfig {
     uint16_t port = 8080;
@@ -81,22 +81,22 @@ public:
     const SignalingServerConfig& getConfig() const { return config_; }
 
     // Callbacks for incoming signaling messages
-    void setOnOfferCallback(OnOfferCallback callback) { onOfferCallback_ = std::move(callback); }
-    void setOnAnswerCallback(OnAnswerCallback callback) { onAnswerCallback_ = std::move(callback); }
-    void setOnIceCandidateCallback(OnIceCandidateCallback callback) { onIceCandidateCallback_ = std::move(callback); }
-    void setOnSessionInitCallback(OnSessionInitCallback callback) { onSessionInitCallback_ = std::move(callback); }
-    void setOnSessionCloseCallback(OnSessionCloseCallback callback) { onSessionCloseCallback_ = std::move(callback); }
-    void setOnErrorCallback(OnErrorCallback callback) { onErrorCallback_ = std::move(callback); }
+    void setOnOfferCallback(ServerOnOfferCallback callback) { onOfferCallback_ = std::move(callback); }
+    void setOnAnswerCallback(ServerOnAnswerCallback callback) { onAnswerCallback_ = std::move(callback); }
+    void setOnIceCandidateCallback(ServerOnIceCandidateCallback callback) { onIceCandidateCallback_ = std::move(callback); }
+    void setOnSessionInitCallback(ServerOnSessionInitCallback callback) { onSessionInitCallback_ = std::move(callback); }
+    void setOnSessionCloseCallback(ServerOnSessionCloseCallback callback) { onSessionCloseCallback_ = std::move(callback); }
+    void setOnErrorCallback(ServerOnErrorCallback callback) { onErrorCallback_ = std::move(callback); }
 
     // Send signaling message to a specific session/device
     bool sendOffer(const std::string& sessionId, const std::string& deviceId, const std::string& sdp);
     bool sendAnswer(const std::string& sessionId, const std::string& sdp);
-    bool sendIceCandidate(const std::string& sessionId, const std::string& candidate);
+    bool sendIceCandidate(const std::string& sessionId, const std::string& sdpMid, int sdpMLineIndex, const std::string& candidate);
     bool sendSessionClose(const std::string& sessionId);
     bool sendError(const std::string& sessionId, const std::string& error);
 
     // Broadcast message to all connected devices
-    void broadcast(const SignalingMessage& message);
+    void broadcast(const ServerSignalingMessage& message);
 
     // Get connected device count
     size_t getConnectedDeviceCount() const;
@@ -116,12 +116,12 @@ private:
     std::atomic<bool> running_{false};
 
     // Callbacks
-    OnOfferCallback onOfferCallback_;
-    OnAnswerCallback onAnswerCallback_;
-    OnIceCandidateCallback onIceCandidateCallback_;
-    OnSessionInitCallback onSessionInitCallback_;
-    OnSessionCloseCallback onSessionCloseCallback_;
-    OnErrorCallback onErrorCallback_;
+    ServerOnOfferCallback onOfferCallback_;
+    ServerOnAnswerCallback onAnswerCallback_;
+    ServerOnIceCandidateCallback onIceCandidateCallback_;
+    ServerOnSessionInitCallback onSessionInitCallback_;
+    ServerOnSessionCloseCallback onSessionCloseCallback_;
+    ServerOnErrorCallback onErrorCallback_;
 };
 
 } // namespace phonecam

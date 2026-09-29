@@ -7,6 +7,8 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <unordered_map>
+#include <mutex>
 
 #include "phonecam/SessionManager.h"
 #include "phonecam/AudioDistributor.h"
@@ -14,6 +16,8 @@
 #include "phonecam/IpcServer.h"
 #include "phonecam/SignalingServer.h"
 #include "phonecam/WebRtcReceiver.h"
+#include "phonecam/DiscoveryClient.h"
+#include "phonecam/SignalingClient.h"
 
 namespace phonecam {
 
@@ -70,6 +74,28 @@ public:
         }
         std::cout << "[PhoneCamDesktop] IPC Server started" << std::endl;
 
+        // Initialize Discovery Client for mDNS device discovery.
+        discoveryClient_ = std::make_unique<DiscoveryClient>();
+        DiscoveryClientConfig discoveryConfig;
+        discoveryConfig.serviceType = "_phonecam._tcp.local";
+        discoveryConfig.browseInterval = std::chrono::milliseconds(10000); // Re-browse every 10 seconds
+        discoveryConfig.resolveAddresses = true;
+        discoveryConfig.resolveTimeout = std::chrono::seconds(5);
+        
+        discoveryClient_->setOnDeviceCallback(
+            [this](const DiscoveredDevice& device, DeviceState state) {
+                handleDeviceDiscovered(device, state);
+            });
+        
+        if (!discoveryClient_->start(discoveryConfig)) {
+            std::cerr << "[PhoneCamDesktop] Failed to start Discovery Client" << std::endl;
+            return false;
+        }
+        std::cout << "[PhoneCamDesktop] Discovery Client started (browsing for _phonecam._tcp.local)" << std::endl;
+
+        // Initialize Signaling Client for connecting to Android WebSocket signaling servers.
+        // We maintain one SignalingClient per discovered device.
+        
         // Initialize Signaling Server.
         // Signaling is bound to loopback and requires a shared token
         // (see requireAuthToken below) so it is not an open, unauthenticated
@@ -99,8 +125,8 @@ public:
                 handleRemoteAnswer(sessionId, sdp);
             });
         signalingServer_->setOnIceCandidateCallback(
-            [this](const std::string& sessionId, const std::string& candidate) {
-                handleIceCandidate(sessionId, candidate);
+            [this](const std::string& sessionId, const std::string& sdpMid, int sdpMLineIndex, const std::string& candidate) {
+                handleIceCandidate(sessionId, sdpMid, sdpMLineIndex, candidate);
             });
         signalingServer_->setOnSessionInitCallback(
             [this](const std::string& sessionId, const std::string& deviceId) {
@@ -126,6 +152,33 @@ public:
                          "A PHONECAM_SIGNALING_TOKEN is REQUIRED to authenticate connections."
                       << std::endl;
         }
+
+        // Forward libdatachannel-generated ICE candidates back to the phone
+        // over the signaling channel. Without this, ICE never completes.
+        // The callback now includes sdpMid and sdpMLineIndex for proper routing
+        // to the correct media stream (video vs audio) on the remote peer.
+        sessionManager_->setIceCandidateHook(
+            [this](const std::string& sessionId, const std::string& sdpMid, int sdpMLineIndex, const std::string& candidate) {
+                // Try to send via WebSocket signaling clients first (new protocol)
+                bool sent = false;
+                {
+                    std::lock_guard<std::mutex> lock(signalingClientsMutex_);
+                    for (auto& [devId, client] : signalingClients_) {
+                        if (client && client->isConnected()) {
+                            if (client->sendCandidate(sessionId, sdpMid, sdpMLineIndex, candidate)) {
+                                sent = true;
+                                break;
+                           }
+                       }
+                   }
+               }
+               
+               // Fallback to legacy TCP signaling server
+               if (!sent && signalingServer_) {
+                   // For the legacy TCP server, we don't have sdpMid/sdpMLineIndex, use defaults
+                   signalingServer_->sendIceCandidate(sessionId, "", 0, candidate);
+               }
+           });
 
         // Connect SessionManager audio output to AudioDistributor.
         // Move the frame in - no copy.
@@ -179,7 +232,25 @@ public:
     void shutdown() {
         std::cout << "[PhoneCamDesktop] Shutting down..." << std::endl;
 
-        // Stop signaling first so no new sessions are created mid-teardown.
+        // Stop discovery client first
+        if (discoveryClient_) {
+            discoveryClient_->stop();
+            discoveryClient_.reset();
+        }
+
+        // Stop WebSocket signaling clients
+        {
+            std::lock_guard<std::mutex> lock(signalingClientsMutex_);
+            for (auto& [deviceId, client] : signalingClients_) {
+                if (client) {
+                    std::cout << "[PhoneCamDesktop] Disconnecting signaling client for device: " << deviceId << std::endl;
+                    client->disconnect();
+                }
+            }
+            signalingClients_.clear();
+        }
+
+        // Stop signaling server (legacy TCP signaling)
         if (signalingServer_) {
             signalingServer_->stop();
             signalingServer_.reset();
@@ -232,35 +303,89 @@ public:
     SecurityManager* getSecurityManager() { return securityManager_.get(); }
     IpcServer* getIpcServer() { return ipcServer_.get(); }
     SignalingServer* getSignalingServer() { return signalingServer_.get(); }
+    DiscoveryClient* getDiscoveryClient() { return discoveryClient_.get(); }
 
-    // Signaling event handlers
+    // Signaling event handlers.
+    //
+    // IMPORTANT: SDP direction is Android --offer--> Desktop --answer--> Android.
+    // We do NOT fabricate an offer; we consume the phone's offer and produce
+    // the desktop's answer.
     void handleRemoteOffer(const std::string& sessionId, const std::string& deviceId, const std::string& sdp) {
-        std::cout << "[PhoneCamDesktop] Received offer for session: " << sessionId << " from device: " << deviceId << std::endl;
-        if (sessionManager_) {
-            // The phone sends an offer; we create a matching session and answer.
-            ensureCameraSession(sessionId, deviceId);
-            ensureAudioSession(sessionId, deviceId);
+        std::cout << "[PhoneCamDesktop] Received offer: sessionId=" << sessionId
+                  << " deviceId=" << deviceId
+                  << " sdpBytes=" << sdp.size() << std::endl;
+        if (!sessionManager_) {
+            std::cerr << "[PhoneCamDesktop] handleRemoteOffer: sessionManager_ is null" << std::endl;
+            return;
+        }
 
-            sessionManager_->setRemoteAnswer(sessionId, sdp);
+        // Make sure both the camera session and the audio session rows exist.
+        // The phone will send sessionInit first, but offer is the more reliable
+        // anchor if it ever fires before init completes.
+        ensureCameraSession(sessionId, deviceId);
+        ensureAudioSession(sessionId, deviceId);
 
-            auto answer = sessionManager_->getLocalAnswer(sessionId);
-            if (answer && signalingServer_) {
-                signalingServer_->sendAnswer(sessionId, *answer);
+        // Feed the phone's SDP offer into libdatachannel (answerer side).
+        // With disableAutoNegotiation=true, libdatachannel produces the answer
+        // synchronously as part of setRemoteDescription + setLocalDescription.
+        if (!sessionManager_->setRemoteOffer(sessionId, sdp)) {
+            std::cerr << "[PhoneCamDesktop] setRemoteOffer failed for " << sessionId << std::endl;
+            return;
+        }
+
+        // After setRemoteOffer returned, libdatachannel has synchronously
+        // invoked the onLocalDescription callback and stashed the answer.
+        auto answer = sessionManager_->getLocalAnswer(sessionId);
+        if (answer) {
+            // Try to send answer via WebSocket signaling client first (new protocol)
+            bool sent = false;
+            {
+                std::lock_guard<std::mutex> lock(signalingClientsMutex_);
+                for (auto& [devId, client] : signalingClients_) {
+                    if (client && client->isConnected()) {
+                        if (client->sendAnswer(sessionId, *answer)) {
+                            sent = true;
+                            std::cout << "[PhoneCamDesktop] Answer sent via WebSocket: sessionId=" << sessionId
+                                      << " sdpBytes=" << answer->size() << std::endl;
+                            break;
+                        }
+                    }
+                }
             }
+            
+            // Fallback to legacy TCP signaling server
+            if (!sent && signalingServer_) {
+                if (!signalingServer_->sendAnswer(sessionId, *answer)) {
+                    std::cerr << "[PhoneCamDesktop] sendAnswer failed for " << sessionId << std::endl;
+                } else {
+                    std::cout << "[PhoneCamDesktop] Answer sent via TCP: sessionId=" << sessionId
+                              << " sdpBytes=" << answer->size() << std::endl;
+                }
+            }
+        } else {
+            std::cerr << "[PhoneCamDesktop] getLocalAnswer returned nullopt for "
+                      << sessionId << std::endl;
         }
     }
 
     void handleRemoteAnswer(const std::string& sessionId, const std::string& sdp) {
-        std::cout << "[PhoneCamDesktop] Received answer for session: " << sessionId << std::endl;
+        std::cout << "[PhoneCamDesktop] Received answer: sessionId=" << sessionId
+                  << " sdpBytes=" << sdp.size() << std::endl;
         if (sessionManager_) {
             sessionManager_->setRemoteAnswer(sessionId, sdp);
+        } else {
+            std::cerr << "[PhoneCamDesktop] handleRemoteAnswer: sessionManager_ is null" << std::endl;
         }
     }
 
-    void handleIceCandidate(const std::string& sessionId, const std::string& candidate) {
-        std::cout << "[PhoneCamDesktop] Received ICE candidate for session: " << sessionId << std::endl;
+    void handleIceCandidate(const std::string& sessionId, const std::string& sdpMid, int sdpMLineIndex, const std::string& candidate) {
+        std::cout << "[PhoneCamDesktop] ICE candidate received: sessionId=" << sessionId
+                  << " mid=" << sdpMid << " mline=" << sdpMLineIndex
+                  << " candidateBytes=" << candidate.size() << std::endl;
         if (sessionManager_) {
-            sessionManager_->addIceCandidate(sessionId, candidate);
+            sessionManager_->addIceCandidate(sessionId, sdpMid, sdpMLineIndex, candidate);
+        } else {
+            std::cerr << "[PhoneCamDesktop] handleIceCandidate: sessionManager_ is null" << std::endl;
         }
     }
 
@@ -268,9 +393,11 @@ public:
     // (SessionManager) and the matching audio session (AudioDistributor) so
     // incoming WebRTC audio actually has a pipeline to flow through.
     void handleSessionInit(const std::string& sessionId, const std::string& deviceId) {
-        std::cout << "[PhoneCamDesktop] Session init: " << sessionId << " for device: " << deviceId << std::endl;
+        std::cout << "[PhoneCamDesktop] Session init: sessionId=" << sessionId
+                  << " deviceId=" << deviceId << std::endl;
 
         if (!securityManager_ || !sessionManager_) {
+            std::cerr << "[PhoneCamDesktop] handleSessionInit: securityManager_ or sessionManager_ is null" << std::endl;
             return;
         }
 
@@ -286,9 +413,11 @@ public:
     }
 
     void handleSessionClose(const std::string& sessionId) {
-        std::cout << "[PhoneCamDesktop] Session closed: " << sessionId << std::endl;
+        std::cout << "[PhoneCamDesktop] Session closed: sessionId=" << sessionId << std::endl;
         if (sessionManager_) {
             sessionManager_->removeSession(sessionId);
+        } else {
+            std::cerr << "[PhoneCamDesktop] handleSessionClose: sessionManager_ is null" << std::endl;
         }
         if (audioDistributor_) {
             audioDistributor_->removeSession(sessionId);
@@ -299,7 +428,165 @@ public:
     }
 
     void handleSignalingError(const std::string& sessionId, const std::string& error) {
-        std::cerr << "[PhoneCamDesktop] Signaling error for session " << sessionId << ": " << error << std::endl;
+        std::cerr << "[PhoneCamDesktop] Signaling error: sessionId=" << sessionId
+                  << " error=" << error << std::endl;
+    }
+
+    // Handle device discovery events
+    void handleDeviceDiscovered(const DiscoveredDevice& device, DeviceState state) {
+        std::cout << "[PhoneCamDesktop] Device "
+                  << (state == DeviceState::ADDED ? "discovered" :
+                      state == DeviceState::UPDATED ? "updated" : "removed")
+                  << ": displayName=" << device.displayName
+                  << " deviceId=" << device.deviceId
+                  << " hostname=" << device.hostname
+                  << " ipAddress=" << device.ipAddress
+                  << " port=" << device.port
+                  << " proto=" << device.proto
+                  << " path=" << device.path << std::endl;
+        
+        if (state == DeviceState::ADDED || state == DeviceState::UPDATED) {
+            // Auto-connect to the device's signaling endpoint
+            connectToDevice(device);
+        } else if (state == DeviceState::REMOVED) {
+            // Disconnect from the device
+            disconnectFromDevice(device.deviceId);
+        }
+    }
+
+    // Connect to a discovered device's WebSocket signaling endpoint
+    void connectToDevice(const DiscoveredDevice& device) {
+        // Check if we already have a connection to this device
+        std::lock_guard<std::mutex> lock(signalingClientsMutex_);
+        if (signalingClients_.find(device.deviceId) != signalingClients_.end()) {
+            std::cout << "[PhoneCamDesktop] Already connected to device: deviceId=" << device.deviceId << std::endl;
+            return;
+        }
+
+        // Determine the host to connect to (prefer IP address, fallback to hostname)
+        std::string connectHost = !device.ipAddress.empty() ? device.ipAddress : device.hostname;
+        if (connectHost.empty()) {
+            std::cerr << "[PhoneCamDesktop] Cannot connect to device: deviceId=" << device.deviceId
+                      << " no IP address or hostname available" << std::endl;
+            return;
+        }
+
+        // Use the port from mDNS (SRV record) and path from TXT record
+        uint16_t connectPort = device.port > 0 ? device.port : 8080;
+        std::string connectPath = !device.path.empty() ? device.path : "/";
+
+        std::cout << "[PhoneCamDesktop] Connecting to device: deviceId=" << device.deviceId
+                  << " host=" << connectHost << " port=" << connectPort << " path=" << connectPath << std::endl;
+
+        // Create and configure the signaling client
+        auto client = std::make_unique<SignalingClient>();
+        
+        SignalingClientConfig clientConfig;
+        clientConfig.host = connectHost;
+        clientConfig.port = connectPort;
+        clientConfig.path = connectPath;
+        clientConfig.connectTimeout = std::chrono::seconds(10);
+        clientConfig.pingInterval = std::chrono::seconds(25);
+        clientConfig.pongTimeout = std::chrono::seconds(10);
+        clientConfig.autoReconnect = true;
+        clientConfig.reconnectDelay = std::chrono::seconds(5);
+
+        // Set up callbacks for incoming messages from the Android device
+        client->setOnHelloCallback(
+            [this, deviceId = device.deviceId](const HelloMessage& hello) {
+                handleHello(deviceId, hello);
+            });
+
+        client->setOnOfferCallback(
+            [this](const OfferMessage& offer) {
+                handleRemoteOffer(offer.sessionId, "", offer.sdp); // deviceId not needed here, we get it from hello
+            });
+
+        client->setOnCandidateCallback(
+            [this](const CandidateMessage& candidate) {
+                handleIceCandidate(candidate.sessionId, candidate.sdpMid, candidate.sdpMLineIndex, candidate.candidate);
+            });
+
+        client->setOnErrorCallback(
+            [this](const ErrorMessage& error) {
+                handleSignalingError(error.sessionId, error.code + ": " + error.message);
+            });
+
+        client->setOnDisconnectedCallback(
+            [this, deviceId = device.deviceId](const DisconnectMessage& disconnect) {
+                handleSignalingDisconnected(deviceId, disconnect);
+            });
+
+        client->setOnConnectionStateChangeCallback(
+            [this, deviceId = device.deviceId](ConnectionState state, const std::string& error) {
+                handleSignalingConnectionStateChange(deviceId, state, error);
+            });
+
+        // Attempt to connect
+        if (client->connect(clientConfig)) {
+            std::cout << "[PhoneCamDesktop] Connected to device: deviceId=" << device.deviceId << std::endl;
+            signalingClients_[device.deviceId] = std::move(client);
+        } else {
+            std::cerr << "[PhoneCamDesktop] Failed to connect to device: deviceId=" << device.deviceId << std::endl;
+        }
+    }
+
+    // Disconnect from a device
+    void disconnectFromDevice(const std::string& deviceId) {
+        std::lock_guard<std::mutex> lock(signalingClientsMutex_);
+        auto it = signalingClients_.find(deviceId);
+        if (it != signalingClients_.end()) {
+            std::cout << "[PhoneCamDesktop] Disconnecting from device: deviceId=" << deviceId << std::endl;
+            it->second->disconnect();
+            signalingClients_.erase(it);
+        }
+    }
+
+    // Handle hello message from Android device
+    void handleHello(const std::string& deviceId, const HelloMessage& hello) {
+        std::cout << "[PhoneCamDesktop] Hello received: deviceId=" << deviceId
+                  << " sessionId=" << hello.sessionId
+                  << " name=" << hello.name
+                  << " state=" << hello.state
+                  << " camera=" << hello.camera
+                  << " micEnabled=" << (hello.micEnabled ? "true" : "false")
+                  << " bitrateKbps=" << hello.bitrateKbps
+                  << " resolution=" << hello.width << "x" << hello.height
+                  << " fps=" << hello.fps << std::endl;
+
+        // The hello message contains the sessionId - use it to initialize the session
+        if (!hello.sessionId.empty()) {
+            handleSessionInit(hello.sessionId, deviceId);
+        }
+    }
+
+    // Handle signaling connection state changes
+    void handleSignalingConnectionStateChange(const std::string& deviceId, ConnectionState state, const std::string& error) {
+        std::cout << "[PhoneCamDesktop] Signaling connection state changed: deviceId=" << deviceId
+                  << " state=" << static_cast<int>(state)
+                  << (error.empty() ? "" : " error=" + error) << std::endl;
+        
+        if (state == ConnectionState::DISCONNECTED || state == ConnectionState::ERROR_STATE) {
+            // Clean up sessions for this device
+            if (sessionManager_) {
+                auto sessionIds = sessionManager_->getAllSessionIds();
+                for (const auto& sessionId : sessionIds) {
+                    // Check if this session belongs to the disconnected device
+                    // For now, we just log - a more robust implementation would track device-session mapping
+                }
+            }
+        }
+    }
+
+    // Handle signaling disconnection
+    void handleSignalingDisconnected(const std::string& deviceId, const DisconnectMessage& disconnect) {
+        std::cout << "[PhoneCamDesktop] Signaling disconnected: deviceId=" << deviceId
+                  << " sessionId=" << disconnect.sessionId
+                  << " reason=" << disconnect.reason << std::endl;
+
+        if (!disconnect.sessionId.empty()) {
+            handleSessionClose(disconnect.sessionId);
+        }
     }
 
 private:
@@ -309,9 +596,19 @@ private:
             ipcServer_->processMessages();
         }
 
-        // Process signaling server events
+        // Process signaling server events (legacy TCP signaling)
         if (signalingServer_) {
             signalingServer_->processEvents();
+        }
+
+        // Process WebSocket signaling clients
+        {
+            std::lock_guard<std::mutex> lock(signalingClientsMutex_);
+            for (auto& [deviceId, client] : signalingClients_) {
+                if (client) {
+                    client->processEvents();
+                }
+            }
         }
 
         // Cleanup expired nonces in SecurityManager periodically
@@ -426,36 +723,31 @@ private:
 #endif
     }
 
-    // Signaling hardening helpers.
-    // Default to loopback (no unauthenticated LAN endpoint). Set
-    // PHONECAM_SIGNALING_BIND=0.0.0.0 to expose on the LAN deliberately.
+    // Signaling bind-address resolution.
+    //
+    // THIS MILESTONE (LAN dev test): default is "0.0.0.0" so the phone can
+    // actually reach the desktop across the LAN. Auth-token enforcement is
+    // deliberately disabled in this build to match SignalingClient.kt, which
+    // currently performs an unauthenticated session-init handshake.
+    //
+    // For any non-LAN deployment, the next milestone MUST re-enable token
+    // auth (PHONECAM_SIGNALING_TOKEN) and revert this default to loopback.
     static std::string resolveSignalingBindAddress() {
         std::string addr = getEnvVar("PHONECAM_SIGNALING_BIND");
         if (!addr.empty()) {
             return addr;
         }
-        return "127.0.0.1";
+        // Milestone default: LAN-accessible. The main() below logs a
+        // prominent one-time warning when this default is used.
+        return "0.0.0.0";
     }
 
     // Whether signaling connections must present an authentication token.
-    // Required (hard on) whenever the server is bound beyond loopback.
-    // Returns true if PHONECAM_SIGNALING_TOKEN is set (token value is loaded
-    // by the SecurityManager and compared against each SESSION_INIT).
+    // Currently NOT enforced in SignalingServer; returned value is advisory
+    // and used only for log messaging.
     static bool resolveSignalingAuthToken() {
         const std::string token = getEnvVar("PHONECAM_SIGNALING_TOKEN");
-        const bool haveToken = !token.empty();
-
-        const std::string bind = getEnvVar("PHONECAM_SIGNALING_BIND");
-        const bool lanExposed = (bind == "0.0.0.0" || bind == "::");
-
-        if (lanExposed && !haveToken) {
-            std::cerr << "[PhoneCamDesktop] FATAL: signaling bound to LAN but "
-                         "PHONECAM_SIGNALING_TOKEN is not set. Refusing to run an "
-                         "unauthenticated LAN signaling endpoint."
-                      << std::endl;
-            std::exit(2);
-        }
-        return haveToken;
+        return !token.empty();
     }
 
     std::unique_ptr<SecurityManager> securityManager_;
@@ -463,6 +755,11 @@ private:
     std::unique_ptr<AudioDistributor> audioDistributor_;
     std::unique_ptr<IpcServer> ipcServer_;
     std::unique_ptr<SignalingServer> signalingServer_;
+    std::unique_ptr<DiscoveryClient> discoveryClient_;
+
+    // WebSocket signaling clients (one per connected Android device)
+    std::mutex signalingClientsMutex_;
+    std::unordered_map<std::string, std::unique_ptr<SignalingClient>> signalingClients_;
 };
 
 } // namespace phonecam
@@ -489,8 +786,19 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Add demo session for testing (remove in production)
-    app.addDemoSession();
+    // Demo session REMOVED in this milestone. We never fabricate sessions;
+    // sessions exist only as a result of real signaling from a real phone.
+    // app.addDemoSession();
+
+    // One-time loud warning if we're using the LAN-dev default bind address
+    // with no auth token -- makes the dev-network configuration explicit.
+    {
+        // No getSignalingConfig accessor; we replicate the resolution to log.
+        // (The real configuration inside SignalingServer is the source of truth.)
+        std::cout << "[PhoneCamDesktop] MILESTONE-DEV: signaling bound to 0.0.0.0,"
+                     " unauthenticated. DO NOT ship this build."
+                  << std::endl;
+    }
 
     // Run main loop
     app.run();

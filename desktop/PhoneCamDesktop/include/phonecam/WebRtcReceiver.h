@@ -26,11 +26,12 @@ struct WebRtcVideoFrame {
 
 // Audio frame from WebRTC
 struct WebRtcAudioFrame {
-    std::vector<float> data; // Interleaved samples
+    std::vector<float> data; // Interleaved samples (PCM) or encoded Opus payload
     uint32_t sampleRate = 48000;
     uint32_t channels = 2;
     int64_t timestampUs = 0;
-    uint32_t frames = 0;
+    uint32_t frames = 0;      // 0 = raw Opus bitstream (first 4 bytes = payload size)
+    std::string codec;        // "opus" or "PCM"
 };
 
 // Session configuration
@@ -49,7 +50,7 @@ struct WebRtcSessionConfig {
 using WebRtcVideoFrameCallback = std::function<void(const std::string& sessionId, const WebRtcVideoFrame& frame)>;
 using WebRtcAudioFrameCallback = std::function<void(const std::string& sessionId, const WebRtcAudioFrame& frame)>;
 using SessionStateCallback = std::function<void(const std::string& sessionId, const std::string& state)>;
-using IceCandidateCallback = std::function<void(const std::string& sessionId, const std::string& candidate)>;
+using IceCandidateCallback = std::function<void(const std::string& sessionId, const std::string& sdpMid, int sdpMLineIndex, const std::string& candidate)>;
 
 // WebRTC Receiver interface
 class WebRtcReceiver {
@@ -65,11 +66,20 @@ public:
     // Remove a session and cleanup resources
     virtual bool removeSession(const std::string& sessionId) = 0;
 
-    // Set remote answer for pending offer
+    // Set remote answer for pending offer (desktop-as-offerer; not used in PhoneCam's
+    // current architecture where the ANDROID phone is always the offerer and the
+    // DESKTOP is the answerer -- kept for interface completeness).
     virtual bool setRemoteAnswer(const std::string& sessionId, const std::string& remoteSdp) = 0;
 
+    // Set remote SDP offer (desktop is the ANSWERER). After this call,
+    // libdatachannel produces the local answer, accessible via getLocalAnswer().
+    // This is the PRIMARY SDP entry point for PhoneCam: Android always offers,
+    // desktop always answers. Do NOT overload setRemoteAnswer() to mean "set offer";
+    // SDP direction must be explicit and unambiguous.
+    virtual bool setRemoteOffer(const std::string& sessionId, const std::string& sdp) = 0;
+
     // Add ICE candidate
-    virtual bool addIceCandidate(const std::string& sessionId, const std::string& candidate) = 0;
+    virtual bool addIceCandidate(const std::string& sessionId, const std::string& sdpMid, int sdpMLineIndex, const std::string& candidate) = 0;
 
     // Set video frame callback
     virtual void setVideoFrameCallback(WebRtcVideoFrameCallback callback) = 0;

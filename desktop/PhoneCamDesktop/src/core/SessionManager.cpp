@@ -46,6 +46,11 @@ bool SessionManager::initialize() {
             videoFrame.format = frame.format;
             videoFrame.codec = frame.codec;
             
+            std::cout << "[SessionManager] Video frame received: sessionId=" << sessionId
+                      << " width=" << frame.width << " height=" << frame.height
+                      << " timestampUs=" << frame.timestampUs << " codec=" << frame.codec
+                      << " dataBytes=" << frame.data.size() << std::endl;
+            
             deliverVideoFrame(sessionId, videoFrame);
         });
 
@@ -58,6 +63,12 @@ bool SessionManager::initialize() {
             audioFrame.channels = frame.channels;
             audioFrame.timestampUs = frame.timestampUs;
             audioFrame.frames = frame.frames;
+            audioFrame.codec = frame.codec;
+            
+            std::cout << "[SessionManager] Audio frame received: sessionId=" << sessionId
+                      << " codec=" << frame.codec << " sampleRate=" << frame.sampleRate
+                      << " channels=" << frame.channels << " frames=" << frame.frames
+                      << " timestampUs=" << frame.timestampUs << " dataBytes=" << frame.data.size() << std::endl;
             
             deliverAudioFrame(sessionId, audioFrame);
         });
@@ -72,9 +83,21 @@ bool SessionManager::initialize() {
         });
 
     webRtcReceiver_->setIceCandidateCallback(
-        [this](const std::string& sessionId, const std::string& candidate) {
-            // In production, this would be sent to the phone via signaling
-            std::cout << "[SessionManager] ICE candidate for " << sessionId << ": " << candidate << std::endl;
+        [this](const std::string& sessionId, const std::string& sdpMid, int sdpMLineIndex, const std::string& candidate) {
+            // Forward to the application layer so main.cpp / preview_main.cpp can
+            // send it back to the phone over the SignalingServer. We do NOT print
+            // the raw candidate (an IP+port pair) at this layer -- the application
+            // decides whether to log or transmit it.
+            std::cout << "[SessionManager] ICE candidate: sessionId=" << sessionId
+                      << " mid=" << sdpMid << " mline=" << sdpMLineIndex
+                      << " candidateBytes=" << candidate.size() << std::endl;
+            if (iceCandidateHook_) {
+                iceCandidateHook_(sessionId, sdpMid, sdpMLineIndex, candidate);
+            } else {
+                std::cout << "[SessionManager] (no ICE hook) candidate for " << sessionId
+                          << " mid=" << sdpMid << " mline=" << sdpMLineIndex
+                          << " bytes=" << candidate.size() << std::endl;
+            }
         });
 
     initialized_ = true;
@@ -127,7 +150,10 @@ bool SessionManager::addSession(const CameraSession& session) {
         return false;
     }
 
-    std::cout << "[SessionManager] Added session: " << session.sessionId << " for device: " << session.deviceId << std::endl;
+    std::cout << "[SessionManager] Session added: sessionId=" << session.sessionId
+              << " deviceId=" << session.deviceId
+              << " videoEnabled=" << (session.videoEnabled ? "true" : "false")
+              << " audioEnabled=" << (session.audioEnabled ? "true" : "false") << std::endl;
     return true;
 }
 
@@ -146,7 +172,9 @@ bool SessionManager::removeSession(const std::string& sessionId) {
     bool removed = sessions_.erase(sessionId) > 0;
     
     if (removed) {
-        std::cout << "[SessionManager] Removed session: " << sessionId << std::endl;
+        std::cout << "[SessionManager] Session removed: " << sessionId << std::endl;
+    } else {
+        std::cerr << "[SessionManager] Session not found for removal: " << sessionId << std::endl;
     }
     
     return removed;
@@ -297,14 +325,33 @@ bool SessionManager::setRemoteAnswer(const std::string& sessionId, const std::st
     if (!webRtcReceiver_) {
         return false;
     }
+    std::cout << "[SessionManager] setRemoteAnswer: sessionId=" << sessionId
+              << " sdpBytes=" << remoteSdp.size() << std::endl;
     return webRtcReceiver_->setRemoteAnswer(sessionId, remoteSdp);
 }
 
-bool SessionManager::addIceCandidate(const std::string& sessionId, const std::string& candidate) {
+bool SessionManager::setRemoteOffer(const std::string& sessionId, const std::string& sdp) {
     if (!webRtcReceiver_) {
         return false;
     }
-    return webRtcReceiver_->addIceCandidate(sessionId, candidate);
+    std::cout << "[SessionManager] setRemoteOffer: sessionId=" << sessionId
+              << " sdpBytes=" << sdp.size() << std::endl;
+    return webRtcReceiver_->setRemoteOffer(sessionId, sdp);
+}
+
+void SessionManager::setIceCandidateHook(IceCandidateHook hook) {
+    std::lock_guard<std::mutex> lock(consumerMutex_);
+    iceCandidateHook_ = std::move(hook);
+}
+
+bool SessionManager::addIceCandidate(const std::string& sessionId, const std::string& sdpMid, int sdpMLineIndex, const std::string& candidate) {
+    if (!webRtcReceiver_) {
+        return false;
+    }
+    std::cout << "[SessionManager] addIceCandidate: sessionId=" << sessionId
+              << " mid=" << sdpMid << " mline=" << sdpMLineIndex
+              << " candidateBytes=" << candidate.size() << std::endl;
+    return webRtcReceiver_->addIceCandidate(sessionId, sdpMid, sdpMLineIndex, candidate);
 }
 
 std::optional<std::string> SessionManager::getLocalOffer(const std::string& sessionId) {
@@ -318,7 +365,14 @@ std::optional<std::string> SessionManager::getLocalAnswer(const std::string& ses
     if (!webRtcReceiver_) {
         return std::nullopt;
     }
-    return webRtcReceiver_->getLocalAnswer(sessionId);
+    auto answer = webRtcReceiver_->getLocalAnswer(sessionId);
+    if (answer) {
+        std::cout << "[SessionManager] getLocalAnswer: sessionId=" << sessionId
+                  << " sdpBytes=" << answer->size() << std::endl;
+    } else {
+        std::cerr << "[SessionManager] getLocalAnswer: no answer available for " << sessionId << std::endl;
+    }
+    return answer;
 }
 
 std::string SessionManager::getSessionState(const std::string& sessionId) const {

@@ -62,7 +62,14 @@ bool AudioDistributor::addSession(const AudioSessionConfig& config) {
         stats_.activeSessions = sessions_.size();
     }
 
-    std::cout << "[AudioDistributor] Added session: " << config.sessionId << std::endl;
+    std::cout << "[AudioDistributor] Session added: sessionId=" << config.sessionId
+              << " deviceId=" << config.deviceId
+              << " sampleRate=" << config.sampleRate
+              << " channels=" << config.channels
+              << " gain=" << config.gain
+              << " muted=" << (config.muted ? "true" : "false")
+              << " delayMs=" << config.delayMs
+              << " enabled=" << (config.enabled ? "true" : "false") << std::endl;
     return true;
 }
 
@@ -74,6 +81,7 @@ bool AudioDistributor::removeSession(const std::string& sessionId) {
     std::lock_guard<std::mutex> lock(sessionsMutex_);
     auto it = sessions_.find(sessionId);
     if (it == sessions_.end()) {
+        std::cerr << "[AudioDistributor] Session not found for removal: " << sessionId << std::endl;
         return false;
     }
 
@@ -86,7 +94,7 @@ bool AudioDistributor::removeSession(const std::string& sessionId) {
         stats_.activeSessions = sessions_.size();
     }
 
-    std::cout << "[AudioDistributor] Removed session: " << sessionId << std::endl;
+    std::cout << "[AudioDistributor] Session removed: sessionId=" << sessionId << std::endl;
     return true;
 }
 
@@ -113,9 +121,11 @@ bool AudioDistributor::setGain(const std::string& sessionId, float gain) {
     std::lock_guard<std::mutex> lock(sessionsMutex_);
     auto it = sessions_.find(sessionId);
     if (it == sessions_.end()) {
+        std::cerr << "[AudioDistributor] setGain: session not found: " << sessionId << std::endl;
         return false;
     }
     it->second->config.gain = gain;
+    std::cout << "[AudioDistributor] Gain set: sessionId=" << sessionId << " gain=" << gain << std::endl;
     return true;
 }
 
@@ -123,9 +133,11 @@ bool AudioDistributor::setMuted(const std::string& sessionId, bool muted) {
     std::lock_guard<std::mutex> lock(sessionsMutex_);
     auto it = sessions_.find(sessionId);
     if (it == sessions_.end()) {
+        std::cerr << "[AudioDistributor] setMuted: session not found: " << sessionId << std::endl;
         return false;
     }
     it->second->config.muted = muted;
+    std::cout << "[AudioDistributor] Muted set: sessionId=" << sessionId << " muted=" << (muted ? "true" : "false") << std::endl;
     return true;
 }
 
@@ -137,6 +149,7 @@ bool AudioDistributor::setDelay(const std::string& sessionId, int delayMs) {
     std::lock_guard<std::mutex> lock(sessionsMutex_);
     auto it = sessions_.find(sessionId);
     if (it == sessions_.end()) {
+        std::cerr << "[AudioDistributor] setDelay: session not found: " << sessionId << std::endl;
         return false;
     }
     
@@ -149,6 +162,7 @@ bool AudioDistributor::setDelay(const std::string& sessionId, int delayMs) {
     it->second->delayWrite = 0;
     it->second->delayFilled = 0;
     
+    std::cout << "[AudioDistributor] Delay set: sessionId=" << sessionId << " delayMs=" << delayMs << std::endl;
     return true;
 }
 
@@ -156,9 +170,11 @@ bool AudioDistributor::setEnabled(const std::string& sessionId, bool enabled) {
     std::lock_guard<std::mutex> lock(sessionsMutex_);
     auto it = sessions_.find(sessionId);
     if (it == sessions_.end()) {
+        std::cerr << "[AudioDistributor] setEnabled: session not found: " << sessionId << std::endl;
         return false;
     }
     it->second->config.enabled = enabled;
+    std::cout << "[AudioDistributor] Enabled set: sessionId=" << sessionId << " enabled=" << (enabled ? "true" : "false") << std::endl;
     return true;
 }
 
@@ -194,6 +210,13 @@ bool AudioDistributor::pushFrame(const std::string& sessionId, AudioFrame&& fram
                 AudioFrame processed = processFrame(std::move(frame), *sessionData);
                 if (sessionData->buffer.tryPush(std::move(processed))) {
                     pushed = true;
+                    std::cout << "[AudioDistributor] Audio frame pushed: sessionId=" << sessionId
+                              << " codec=" << processed.codec
+                              << " frames=" << processed.frames
+                              << " sampleRate=" << processed.sampleRate
+                              << " channels=" << processed.channels
+                              << " dataBytes=" << processed.data.size()
+                              << " timestampUs=" << processed.timestampUs << std::endl;
                 }
             }
         }
@@ -225,6 +248,13 @@ bool AudioDistributor::pushFrame(const std::string& sessionId, AudioFrame&& fram
 
 AudioFrame AudioDistributor::processFrame(AudioFrame frame, SessionData& sessionData) {
     const auto& config = sessionData.config;
+    
+    // Pass through raw Opus frames without processing (frames=0 marker)
+    // Raw Opus format: first 4 bytes = payload size (uint32_t), followed by Opus data
+    if (frame.frames == 0 && frame.data.size() >= 4) {
+        // This is a raw Opus bitstream frame - pass through unchanged
+        return frame;
+    }
     
     // Apply mute (silence regardless of delay - mute is immediate)
     if (config.muted) {
@@ -349,6 +379,14 @@ void AudioDistributor::deliverToConsumer(const std::string& sessionId, const Aud
         std::lock_guard<std::mutex> statsLock(statsMutex_);
         stats_.totalFramesDelivered++;
     }
+
+    std::cout << "[AudioDistributor] Audio frame delivered: sessionId=" << sessionId
+              << " codec=" << frame.codec
+              << " frames=" << frame.frames
+              << " sampleRate=" << frame.sampleRate
+              << " channels=" << frame.channels
+              << " dataBytes=" << frame.data.size()
+              << " timestampUs=" << frame.timestampUs << std::endl;
 }
 
 AudioDistributor::Stats AudioDistributor::getStats() const {

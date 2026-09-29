@@ -26,11 +26,12 @@ struct VideoFrame {
 
 // Audio frame structure for frame retrieval
 struct AudioFrame {
-    std::vector<float> data; // Planar: interleaved stereo samples
+    std::vector<float> data; // Interleaved samples (PCM) or encoded Opus payload
     uint32_t sampleRate = 48000;
     uint32_t channels = 2;
     int64_t timestampUs = 0;
-    uint32_t frames = 0;
+    uint32_t frames = 0;      // 0 = raw Opus bitstream (first 4 bytes = payload size)
+    std::string codec;        // "opus" or "PCM"
 };
 
 struct CameraSession {
@@ -61,6 +62,13 @@ using AudioFrameCallback = std::function<std::optional<AudioFrame>(const std::st
 // Consumer callbacks for real-time frame distribution
 using VideoFrameConsumer = std::function<void(const std::string& sessionId, const VideoFrame& frame)>;
 using AudioFrameConsumer = std::function<void(const std::string& sessionId, const AudioFrame& frame)>;
+
+// Application-level hook fired when libdatachannel generates a local ICE
+// candidate for a session. The application (main.cpp / preview_main.cpp) is
+// responsible for forwarding it over the SignalingServer to the phone.
+// Includes sdpMid and sdpMLineIndex to properly route candidates to the correct
+// media stream (video vs audio) on the remote peer.
+using IceCandidateHook = std::function<void(const std::string& sessionId, const std::string& sdpMid, int sdpMLineIndex, const std::string& candidate)>;
 
 class SessionManager {
 public:
@@ -108,7 +116,13 @@ public:
 
     // WebRTC signaling integration
     bool setRemoteAnswer(const std::string& sessionId, const std::string& remoteSdp);
-    bool addIceCandidate(const std::string& sessionId, const std::string& candidate);
+    // Desktop-as-answerer entry point. Called when the Android phone sends its SDP offer.
+    bool setRemoteOffer(const std::string& sessionId, const std::string& sdp);
+    bool addIceCandidate(const std::string& sessionId, const std::string& sdpMid, int sdpMLineIndex, const std::string& candidate);
+
+    // Set a callback that will be invoked whenever the underlying PeerConnection
+    // emits a local ICE candidate. Typically wired to SignalingServer::sendIceCandidate.
+    void setIceCandidateHook(IceCandidateHook hook);
     std::optional<std::string> getLocalOffer(const std::string& sessionId);
     std::optional<std::string> getLocalAnswer(const std::string& sessionId);
     std::string getSessionState(const std::string& sessionId) const;
@@ -135,6 +149,7 @@ private:
     // Real-time consumers (push-based)
     VideoFrameConsumer videoConsumer_;
     AudioFrameConsumer audioConsumer_;
+    IceCandidateHook iceCandidateHook_;
     mutable std::mutex consumerMutex_;
     
     bool initialized_ = false;

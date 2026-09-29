@@ -1,5 +1,6 @@
 # Builds
 .gradle/
+gradle-*/
 build/
 out/
 bin/
